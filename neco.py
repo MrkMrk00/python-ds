@@ -1,9 +1,9 @@
 import pandas as pd 
 import sklearn.model_selection
+from sklearn.model_selection import cross_val_score
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.metrics import classification_report 
-from multiprocessing import Process
+from sklearn.metrics import classification_report
 
 df: pd.DataFrame = pd.read_pickle('data.pkl')
 
@@ -36,26 +36,67 @@ X_train, X_test, y_train, y_test = sklearn.model_selection.train_test_split(feat
                                                              test_size=0.2,
                                                              random_state=69420) # type: ignore
 
-def train_and_predict_svm():
-    model = SVC()
-    model.fit(X=X_train, y=y_train)
-    
-    y_predict = model.predict(X=X_test)
+class Model:
+    def __init__(self, classifier, grid_search_params):
+        self._classifier = classifier
+        self._grid_search_params = grid_search_params
 
-    with open('result-svm.txt', 'w') as f:
-        f.write(str(classification_report(y_test, y_predict)))
+    def train_and_predict(self, 
+                          X_train: pd.DataFrame,
+                          X_test: pd.DataFrame,
+                          y_train: pd.DataFrame,
+                          y_test: pd.DataFrame):
+        
+        self._classifier.fit(X=X_train, y=y_train)
+        y_predict = self._classifier.predict(X=X_test)
+
+        file_name = self._get_name() + '-classification_report.txt'
+        with open(file_name, 'w') as f:
+            f.write(str(classification_report(y_test, y_predict)))
+
+    def _get_name(self) -> str:
+        return self._classifier.__class__.__name__.lower()
+
+    def grid_search(self, **kwargs):
+        print(f'Performing grid search on {self._get_name()}...')
+        grid_search = sklearn.model_selection.GridSearchCV(
+            self._classifier, 
+            self._grid_search_params, 
+            **kwargs,
+        )
+
+        grid_search.fit(X_train, y_train)
+        file_name = self._get_name() + '-grid_search.txt'
+
+        with open(file_name, 'w') as f:
+            f.write(str(grid_search.best_params_))
 
 
-def train_and_predict_decision_tree():
-    model = DecisionTreeClassifier()
-    model.fit(X=X_train, y=y_train)
-    
-    y_predict = model.predict(X=X_test)
-    with open('result-decision-tree.txt', 'w') as f:
-        f.write(str(classification_report(y_test, y_predict)))
+svm = Model(SVC(), { 
+    'C': [0.5, 1], 
+    'kernel': ['rbf'],
+})
 
+# svm.train_and_predict(
+#     X_train=X_train,
+#     X_test=X_test,
+#     y_train=y_train,
+#     y_test=y_test
+# )
 
-Process(target=train_and_predict_svm).start()
-Process(target=train_and_predict_decision_tree).start()
+# svm.grid_search() to je pomalý :/
 
+# From GridSearchCV: criterion='log_loss', splitter='best'
+tree = Model(DecisionTreeClassifier(criterion='log_loss', splitter='best'), {
+    'criterion': ['gini', 'entropy', 'log_loss'],
+    'splitter': ['best', 'random'],
+})
+
+# tree.grid_search(n_jobs=6)
+tree.train_and_predict(
+    X_train=X_train,
+    X_test=X_test,
+    y_train=y_train,
+    y_test=y_test
+)
 
