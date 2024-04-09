@@ -2,7 +2,8 @@ import pandas as pd
 import sklearn.model_selection
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.metrics import classification_report
+from sklearn.metrics import classification_report 
+from multiprocessing import Process
 
 df: pd.DataFrame = pd.read_pickle('data.pkl')
 
@@ -17,7 +18,7 @@ df = df[['biome', *important_features[1:]]]
 df.replace(pd.NA, 0.0, inplace=False)
 
 # Add a new derived column sum_all - sum of all numeric columns (feature values)
-df['sum_all'] = df.sum(axis=1)
+df['sum_all'] = df.sum(axis=1, numeric_only=True)
 
 # Filter out rows with sum_all <= 0.0 - no feature was found in the sample
 df = df[df['sum_all'] > 0.0]
@@ -40,8 +41,9 @@ def train_and_predict_svm():
     model.fit(X=X_train, y=y_train)
     
     y_predict = model.predict(X=X_test)
-    
-    return classification_report(y_test, y_predict)
+
+    with open('result-svm.txt', 'w') as f:
+        f.write(str(classification_report(y_test, y_predict)))
 
 
 def train_and_predict_decision_tree():
@@ -49,9 +51,11 @@ def train_and_predict_decision_tree():
     model.fit(X=X_train, y=y_train)
     
     y_predict = model.predict(X=X_test)
-    
-    return classification_report(y_test, y_predict)
+    with open('result-decision-tree.txt', 'w') as f:
+        f.write(str(classification_report(y_test, y_predict)))
 
 
-print(train_and_predict_decision_tree())
+Process(target=train_and_predict_svm).start()
+Process(target=train_and_predict_decision_tree).start()
+
 
